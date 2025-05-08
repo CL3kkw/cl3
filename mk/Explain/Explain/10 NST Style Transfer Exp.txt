@@ -1,0 +1,449 @@
+# Neural Style Transfer using MobileNetV2 - Full Code Explanation
+
+import torch
+import torch.nn.functional as F
+from torchvision import models, transforms
+from PIL import Image
+import matplotlib.pyplot as plt
+
+# Load and preprocess an image
+def load_image(img_path, size=256):
+    image = Image.open(img_path).convert('RGB')  # Open image and ensure 3 channels
+    transform = transforms.Compose([
+        transforms.Resize((size, size)),          # Resize to fixed size
+        transforms.ToTensor()                    # Convert to [0,1] tensor
+    ])
+    return transform(image).unsqueeze(0)         # Add batch dimension [1, C, H, W]
+
+# Function to compute Gram Matrix (used to measure style)
+def gram_matrix(tensor):
+    b, c, h, w = tensor.size()                   # Get batch, channels, height, width
+    features = tensor.view(c, h * w)             # Flatten spatial dimensions
+    return torch.mm(features, features.t()) / (c * h * w)  # Normalized feature correlation
+
+# Feature extractor using MobileNetV2's feature layers
+class FeatureExtractor(torch.nn.Module):
+    def __init__(self, layers):
+        super().__init__()
+        self.model = models.mobilenet_v2(pretrained=True).features  # Load pretrained MobileNetV2
+        self.layers = layers                                        # List of layers to extract
+
+    def forward(self, x):
+        features = []
+        for i, layer in enumerate(self.model):     # Loop over each layer
+            x = layer(x)
+            if str(i) in self.layers:              # Save output if layer index matches
+                features.append(x)
+        return features
+
+# Load content and style images
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+content = load_image('base.jpg').to(device)    # Content image
+style = load_image('style.jpg').to(device)     # Style image
+target = content.clone().requires_grad_(True)  # Image to optimize (starts as copy of content)
+
+# Function to display image tensor
+def imshow(tensor, title):
+    img = tensor.squeeze().cpu().permute(1, 2, 0).clamp(0, 1)  # Convert to [H, W, C]
+    plt.imshow(img)
+    plt.title(title)
+    plt.axis('off')
+    plt.show()
+
+imshow(content, "Content Image")
+imshow(style, "Style Image")
+
+# Feature extractor for specific layers
+extractor = FeatureExtractor(layers=['4', '7']).to(device).eval()  # Layers chosen for style + content
+
+# Extract features (content and style) without computing gradients
+with torch.no_grad():
+    style_features = extractor(style)
+    content_features = extractor(content)
+
+# Compute Gram matrices for style features
+style_grams = [gram_matrix(f).detach() for f in style_features]
+
+# Optimizer to update target image pixels
+optimizer = torch.optim.Adam([target], lr=0.01)
+
+# Main style transfer loop
+for step in range(200):  # Run 200 iterations
+    target_features = extractor(target)  # Get features from current target
+
+    # Compute content loss from the deeper layer (last layer selected)
+    content_loss = F.mse_loss(target_features[-1], content_features[-1])
+
+    # Compute style loss from Gram matrices at selected layers
+    style_loss = sum(F.mse_loss(gram_matrix(f), g) for f, g in zip(target_features, style_grams))
+
+    # Total loss is content + weighted style
+    loss = content_loss + 1e5 * style_loss
+
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+
+# Display the final stylized image
+output = target.squeeze().detach().cpu().clamp(0, 1).permute(1, 2, 0)
+plt.imshow(output)
+plt.axis('off')
+plt.show()
+
+
+Theory of Neural Style Transfer using MobileNetV2
+ What is Neural Style Transfer (NST)?
+Neural Style Transfer (NST) is a technique in deep learning where you generate a new image that blends the content of one image with the style of another.
+
+Example:
+Content image: A photograph of a cityscape.
+
+Style image: A Van Gogh painting.
+
+Output: The cityscape painted in the style of Van Gogh.
+
+ How does NST work?
+NST relies on Convolutional Neural Networks (CNNs), which extract hierarchical image features.
+
+Lower layers → edges, textures (good for style)
+
+Higher layers → object shapes and layout (good for content)
+
+Key Components:
+Component	Description
+Content Loss	Measures the difference between content features of the original and generated images
+Style Loss	Measures difference between style features using Gram matrices
+Gram Matrix	A representation of feature correlations used to capture texture and style
+
+ Why use MobileNetV2?
+It's lightweight and efficient compared to deeper networks like VGG19.
+
+Useful in real-time applications or on low-power devices.
+
+Still provides enough feature abstraction for NST.
+
+ Process Summary
+Load a pre-trained CNN (MobileNetV2).
+
+Extract features from selected layers.
+
+Compute:
+
+Content loss: MSE(target_features, content_features)
+
+Style loss: MSE(Gram(target), Gram(style))
+
+Optimize the target image pixels (not model weights).
+
+Generate an image that minimizes both losses.
+
+ Important Definitions
+1. Gram Matrix
+A matrix of inner products between feature maps used to represent style:
+
+ 
+2. Content Loss
+Mean Squared Error between deep features of content and target images.
+
+3. Style Loss
+MSE between Gram matrices of style and target image features, usually taken from multiple layers.
+
+4. Optimization Goal
+
+Style Loss
+Loss=Content Loss+λ×Style Loss
+(λ is a weight factor, usually very high like 
+
+ Common Questions with Detailed Answers
+Q1: What is the goal of neural style transfer?
+Answer:
+The goal of neural style transfer is to generate a new image that combines the content of one image with the style (color, texture, patterns) of another. This is achieved by optimizing a target image so that its deep features match the content image and its Gram matrices match the style image.
+
+Q2: What is a Gram matrix and why is it used in style transfer?
+Answer:
+A Gram matrix is a matrix of inner products between feature maps extracted from a CNN layer. It captures feature correlations, which represent the texture and style of an image. Comparing Gram matrices of different images helps match their style regardless of spatial arrangement.
+
+Q3: Why do we use a pre-trained CNN like MobileNetV2 in style transfer?
+Answer:
+We use a pre-trained CNN like MobileNetV2 to extract meaningful features from images without training from scratch. MobileNetV2 is lightweight and efficient, making it ideal for extracting content and style representations while being computationally efficient.
+
+Q4: What are content and style losses in neural style transfer?
+Answer:
+
+Content loss measures the difference in high-level features (shapes, structure) between the target and content image.
+
+Style loss measures the difference in feature correlations (Gram matrices) between the target and style image.
+The final loss is a weighted sum of both.
+
+Q5: Why do we optimize the target image instead of training the network?
+Answer:
+The neural network is fixed (pre-trained), and we optimize the pixel values of the target image directly to match the desired content and style. Training the network would be unnecessary and computationally expensive for each image pair.
+
+Q6: Why is style loss weighted higher (e.g., 1e5)?
+Answer:
+Style loss is typically weighted much higher because style features (textures, patterns) are subtle and need to strongly influence the output. Without a large weight, the generated image would preserve content but might not show the desired artistic style.
+
+Q7: What layers should be used for content and style features?
+Answer:
+
+For content, higher layers (like layer 7 or beyond) are preferred because they capture object structure.
+
+For style, multiple lower and mid-level layers (like 1–7) are used to capture texture and patterns at various scales.
+
+Q8: How is MobileNetV2 different from VGG19 in NST?
+Answer:
+
+VGG19 is deep and computationally heavy, often used in research papers.
+
+MobileNetV2 is much more efficient, smaller, and faster, suitable for mobile and real-time applications.
+However, MobileNetV2 may extract less detailed features, potentially affecting output quality slightly.
+
+Q9: What is the shape of the input and output image tensors?
+Answer:
+
+Input tensor shape: [1, 3, 256, 256] (Batch, Channels, Height, Width)
+
+Output image (after processing): [3, 256, 256], reshaped for display using permute(1, 2, 0) → [256, 256, 3]
+
+Q10: What optimizer is used and why?
+Answer:
+The Adam optimizer is used because it combines the benefits of momentum and adaptive learning rates, making convergence faster and more stable. It's especially effective when optimizing pixel values in NST.
+
+
+
+
+
+ Key Components of Neural Style Transfer (Simplified & Detailed)
+1. Content Loss
+What is it?
+It’s a way to make sure the main structure and objects in the target image are similar to the content image.
+
+ Intuition:
+Imagine a photo of a dog (content image). We want the final stylized image to still look like that dog, just painted differently.
+
+ How it's calculated:
+Use a deep layer of the CNN (e.g., layer 7) because deep layers capture shapes and structure, not just pixels.
+
+Compare the features (not pixels) of the target image and the content image.
+
+Use Mean Squared Error (MSE) between those features.
+
+ 2. Style Loss
+ What is it?
+It ensures that the patterns, colors, and textures of the target image look like the style image.
+
+ Intuition:
+Suppose the style image is a Van Gogh painting. We want our target image to have those swirly textures and vivid colors.
+
+But here’s the trick: instead of comparing pixel by pixel, we compare how the features relate to each other using something called the Gram matrix.
+
+ 3. Gram Matrix
+ What is it?
+A Gram matrix shows how feature maps (channels) interact with each other.
+
+ Intuition:
+Think of the Gram matrix as a table that shows how much different textures (like lines, dots, swirls) appear together in the image.
+
+If two features are strongly related, their values in the Gram matrix will be high.
+
+ How it's calculated:
+Take feature maps of size [C, H, W] (Channels, Height, Width).
+
+Flatten it into [C, H×W] so we can compute inner products.
+
+Multiply it with its transpose to get a [C, C] Gram matrix.
+
+ 
+ 4. Total Loss Function
+The final total loss is a combination of both:
+This ensures style has a strong influence, or else the result will look like the content image only.
+
+ 5. Optimization
+We are not training the model. Instead, we optimize the target image itself.
+
+We update the pixels of the target image so that it looks like both the content and the style.
+
+This is done using backpropagation + optimizer (Adam is commonly used).
+
+ Summary Table
+Component	What it Does	Intuition (Simple Words)
+Content Loss	Keeps structure of content image	So the picture still “looks like” the original
+Style Loss	Adds texture & color of style	So the image “feels like” a painting or style
+Gram Matrix	Measures feature correlations	Shows how patterns (textures) relate
+Total Loss	Mixes content + style	Final guide to update the target image
+Optimization	Updates image pixels	We "paint" the image to follow the losses
+
+
+
+This code performs Neural Style Transfer using MobileNetV2 as a feature extractor in PyTorch. The goal is to blend the content of one image (base image) with the style of another image (style image), producing a new image that looks like the content image painted in the style of the other.
+
+ Detailed Breakdown
+1. Importing Libraries
+python
+Copy
+Edit
+import torch
+import torch.nn.functional as F
+from torchvision import models, transforms
+from PIL import Image
+import matplotlib.pyplot as plt
+torch & torch.nn.functional (F): For model operations and custom loss functions.
+
+torchvision.models: Contains pre-trained models (here, MobileNetV2).
+
+transforms: Preprocess images (resize, convert to tensor).
+
+PIL.Image: Load images.
+
+matplotlib.pyplot: Display images.
+
+2. Image Loading and Preprocessing
+python
+Copy
+Edit
+def load_image(img_path, size=256):
+    image = Image.open(img_path).convert('RGB')
+    transform = transforms.Compose([
+        transforms.Resize((size, size)),
+        transforms.ToTensor()
+    ])
+    return transform(image).unsqueeze(0)
+Loads an image from path and converts it to RGB.
+
+Resizes it to a fixed size (256x256).
+
+Converts to a tensor (shape: [C, H, W]).
+
+unsqueeze(0) adds a batch dimension ⇒ shape becomes [1, C, H, W].
+
+3. Gram Matrix Calculation for Style
+python
+Copy
+Edit
+def gram_matrix(tensor):
+    b, c, h, w = tensor.size()
+    features = tensor.view(c, h * w)  # Flatten spatial dimensions
+    return torch.mm(features, features.t()) / (c * h * w)
+The Gram matrix measures the correlation between feature maps (used to capture style).
+
+Output shape: [C, C] matrix of inner products between feature channels.
+
+4. Feature Extractor using MobileNetV2
+python
+Copy
+Edit
+class FeatureExtractor(torch.nn.Module):
+    def __init__(self, layers):
+        super().__init__()
+        self.model = models.mobilenet_v2(pretrained=True).features
+        self.layers = layers
+
+    def forward(self, x):
+        features = []
+        for i, layer in enumerate(self.model):
+            x = layer(x)
+            if str(i) in self.layers:
+                features.append(x)
+        return features
+Loads pretrained MobileNetV2, which is lightweight and fast.
+
+Only specific layers (by index) are used for extracting features.
+
+self.model contains only the convolutional layers (features).
+
+During forward pass, it collects outputs of selected layers (like layer 4 and 7).
+
+5. Load and Display Images
+python
+Copy
+Edit
+content = load_image('base.jpg').to(device)
+style = load_image('style.jpg').to(device)
+target = content.clone().requires_grad_(True)
+Load content and style images, move to device (CPU/GPU).
+
+Clone content image as the target (output), and set it to require gradients.
+
+6. Display Function
+python
+Copy
+Edit
+def imshow(tensor, title):
+    img = tensor.squeeze().cpu().permute(1, 2, 0).clamp(0, 1)
+    plt.imshow(img)
+    plt.title(title)
+    plt.axis('off')
+    plt.show()
+Converts tensor back to image format (CHW → HWC), clamps values between 0 and 1.
+
+Used to display content and style images.
+
+7. Feature Extraction
+python
+Copy
+Edit
+extractor = FeatureExtractor(layers=['4', '7']).to(device).eval()
+
+with torch.no_grad():
+    style_features = extractor(style)
+    content_features = extractor(content)
+
+style_grams = [gram_matrix(f).detach() for f in style_features]
+Initializes the extractor for layers 4 and 7.
+
+Extracts style and content features (no gradients needed here).
+
+Computes Gram matrices for style features for later comparison.
+
+8. Optimizer for Target Image
+python
+Copy
+Edit
+optimizer = torch.optim.Adam([target], lr=0.01)
+Uses Adam optimizer to update the target image (not model weights).
+
+The only parameter being optimized is the target image tensor itself.
+
+9. Style Transfer Training Loop
+python
+Copy
+Edit
+for step in range(200):
+    target_features = extractor(target)
+    content_loss = F.mse_loss(target_features[-1], content_features[-1])
+    style_loss = sum(F.mse_loss(gram_matrix(f), g) for f, g in zip(target_features, style_grams))
+    loss = content_loss + 1e5 * style_loss
+
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+Forward pass: Extract features from the current target image.
+
+Content loss: MSE between target and content features (only the deeper layer 7).
+
+Style loss: Sum of MSE losses between Gram matrices of target and style.
+
+Total loss = content loss + 1e5 × style loss (style is weighted more heavily).
+
+Backpropagate and update the target image using the optimizer.
+
+10. Final Output Display
+python
+Copy
+Edit
+output = target.squeeze().detach().cpu().clamp(0, 1).permute(1, 2, 0)
+plt.imshow(output)
+plt.axis('off')
+plt.show()
+Detaches the final optimized image from computation graph.
+
+Converts to image format and displays the stylized image.
+
+Summary of Process
+Step	Description
+1.	Load content and style images
+2.	Extract features using MobileNetV2
+3.	Compute style features' Gram matrices
+4.	Initialize target image as a copy of content
+5.	Optimize target to match content & style losses
+6.	Display the final stylized image

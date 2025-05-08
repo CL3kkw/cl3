@@ -1,0 +1,363 @@
+his Python code simulates a simple weighted round-robin load balancer. Let me explain the entire script part by part with both theory and how it works practically.
+
+📌 1. create_server(name, weight)
+python
+Copy
+Edit
+def create_server(name, weight):
+    return {"name": name, "weight": weight}
+Purpose: Creates a server representation as a dictionary with its name and weight.
+
+Weight: Higher weight means the server should receive more loads compared to others (more "powerful").
+
+Returns: A dictionary like {'name': 'A', 'weight': 2}
+
+📌 2. create_load_balancer(servers)
+python
+Copy
+Edit
+def create_load_balancer(servers):
+    weighted_servers = []
+    for server in servers:
+        weighted_servers.extend([server] * server["weight"])
+    return {"servers": weighted_servers, "current_index": 0}
+Purpose: Creates a load balancer that distributes load based on server weights.
+
+Key Idea: For a server with weight = 3, it will appear 3 times in the internal list weighted_servers.
+
+🧠 Example:
+Suppose:
+
+python
+Copy
+Edit
+servers = [
+    {"name": "A", "weight": 2},
+    {"name": "B", "weight": 1}
+]
+Then:
+
+python
+Copy
+Edit
+weighted_servers = [A, A, B]
+Load will go in this sequence: A → A → B → A → A → B → …
+
+This allows weighted round-robin behavior without complex math.
+
+Returns: A dictionary with:
+
+"servers": the list of servers duplicated according to their weights
+
+"current_index": pointer to the next server
+
+📌 3. add_server(load_balancer, server)
+python
+Copy
+Edit
+def add_server(load_balancer, server):
+    load_balancer["servers"].extend([server] * server["weight"])
+Purpose: Dynamically adds a new server to the load balancer.
+
+Effect: Adds the server to the servers list with the appropriate number of entries based on its weight.
+
+📌 4. get_next_server(load_balancer)
+python
+Copy
+Edit
+def get_next_server(load_balancer):
+    next_server = load_balancer["servers"][load_balancer["current_index"]]
+    load_balancer["current_index"] = (load_balancer["current_index"] + 1) % len(load_balancer["servers"])
+    return next_server
+Purpose: Returns the next server in round-robin fashion.
+
+Working:
+
+Picks the current server using current_index
+
+Increments the index (and wraps around using modulo %)
+
+Ensures loads are evenly distributed across the weighted server list
+
+📌 5. prompt_server_info(index)
+python
+Copy
+Edit
+def prompt_server_info(index):
+    name = input(f"Enter the name of server {index}: ")
+    weight = int(input(f"Enter the weight of server {index}: "))
+    return create_server(name, weight)
+Purpose: Takes user input for each server's name and weight.
+
+Used in: the main block to build the server list interactively.
+
+📌 6. assign_load(load_balancer, i)
+python
+Copy
+Edit
+def assign_load(load_balancer, i):
+    next_server = get_next_server(load_balancer)
+    print(f"Load {i} assigned to server: {next_server['name']}")
+Purpose: Simulates assigning a single load request to the next server.
+
+i: Used to label the load (e.g., Load 1, Load 2, etc.)
+
+📌 7. __main__ Block
+python
+Copy
+Edit
+if __name__ == "__main__":
+    servers = []
+    num_servers = int(input("Enter the number of servers: "))
+    for i in range(1, num_servers + 1):
+        servers.append(prompt_server_info(i))
+    lb = create_load_balancer(servers)
+    
+    num_loads = int(input("Enter the number of loads: "))
+    print("\nLoad balancing result:")
+    for i in range(1, num_loads + 1):
+        assign_load(lb, i)
+What it does:
+
+Prompts the user for the number of servers.
+
+For each server, asks for name and weight.
+
+Creates a load balancer using the create_load_balancer function.
+
+Prompts for the number of load requests.
+
+Assigns each load to the appropriate server based on weighted round-robin.
+
+✅ Example Walkthrough
+Let’s say the user inputs:
+
+Number of servers: 2
+
+Server 1: A, weight 2
+
+Server 2: B, weight 1
+
+Number of loads: 6
+
+The weighted_servers will be:
+
+python
+Copy
+Edit
+[A, A, B]
+The loads will be assigned in this order:
+
+Load 1 → A
+
+Load 2 → A
+
+Load 3 → B
+
+Load 4 → A
+
+Load 5 → A
+
+Load 6 → B
+... and so on.
+
+
+Define a function called create server which takes two inputs: a name and a weight
+Inside the function, return a dictionary that contains two keys: one for the name and one for the weight
+
+Define a function called create load balancer which takes a list of servers as input
+Inside this function, make an empty list called weighted servers
+Loop over each server in the list of servers
+For each server, add it to the weighted servers list multiple times based on its weight
+After the loop ends, return a dictionary that contains the weighted servers list and a value for current index set to zero
+
+Define a function called add server which takes a load balancer and a new server as input
+Inside this function, add the server to the load balancer's list of servers multiple times based on its weight
+
+Define a function called get next server which takes a load balancer as input
+Inside this function, pick the server from the list of servers using the current index
+Then increase the current index by one
+If the current index reaches the end of the list, start again from the beginning
+Return the selected server
+
+Define a function called prompt server info which takes a number index as input
+Inside this function, ask the user to type the name of a server and store the response
+Then ask the user to type the weight of the server and convert the response to an integer number
+Return the server using the create server function with the given name and weight
+
+Define a function called assign load which takes a load balancer and a load number as input
+Inside this function, get the next server using the get next server function
+Print which server has been assigned to the given load number
+
+If the script is being run directly
+Make an empty list called servers
+Ask the user how many servers they want to use and convert the response to an integer number
+Loop from one up to and including the number of servers
+In each loop, get the server information from the user and add it to the list of servers
+Create the load balancer using the list of servers
+
+Ask the user how many loads they want to distribute and convert the response to an integer number
+Print a message that shows the start of load balancing
+Loop from one up to and including the number of loads
+In each loop, assign the load to a server using the assign load function
+
+
+
+
+THEORY: Weighted Round-Robin Load Balancing (Python Simulation)
+🔷 What is Load Balancing?
+Load balancing is a technique used in distributed systems to distribute incoming network traffic or computational tasks across multiple servers (or resources). The goal is to ensure no single server is overwhelmed and overall system performance is optimized.
+
+🔷 What is Round-Robin Load Balancing?
+Round-Robin is the simplest form of load balancing:
+
+It distributes load sequentially to each server in order.
+
+If there are 3 servers (A, B, C), the loads are assigned as: A → B → C → A → B → C → ...
+
+🔷 What is Weighted Round-Robin?
+Weighted Round-Robin extends the basic method by assigning weights to servers:
+
+Servers with higher weights get more load assignments in each cycle.
+
+Useful when servers have different processing capabilities.
+
+Example:
+Server A: weight = 3
+
+Server B: weight = 1
+
+Sequence of assignment: A → A → A → B → A → A → A → B → ...
+
+This allows more powerful servers to handle more traffic, increasing efficiency.
+
+🔷 How the Python Code Implements This
+Key Components:
+create_server(name, weight): Builds server objects with a name and weight.
+
+create_load_balancer(servers):
+
+For each server, duplicates it weight times into an internal list.
+
+Example: Server A (weight=2) → [A, A]
+
+get_next_server():
+
+Uses a rotating index (current_index) to return the next server in the weighted list.
+
+assign_load():
+
+Prints which server handles each load, based on rotation.
+
+🔷 Advantages of This Implementation
+✅ Simple and easy to implement
+
+✅ Dynamically handles server addition
+
+✅ Fair distribution of tasks according to server capability
+
+🔷 Limitations
+❌ Repetition of server objects can waste memory (for large weights)
+
+❌ Static weights (no auto-scaling based on real-time performance/load)
+
+❌ No fault tolerance or health checks
+
+📝 POSSIBLE EXAM QUESTIONS AND DETAILED ANSWERS
+🔸Q1: Explain the concept of weighted round-robin load balancing. How is it implemented using Python?
+Answer:
+
+Weighted round-robin is a load balancing algorithm that assigns a weight to each server, indicating its processing capacity. Servers with higher weights receive more load requests.
+
+In Python, this is implemented by:
+
+Creating server objects with a name and weight.
+
+Expanding each server in a list weight number of times.
+
+Using a rotating index (current_index) to cycle through the list.
+
+Assigning incoming loads to servers based on this index.
+
+This ensures that more powerful servers handle more loads, improving performance and balancing traffic efficiently.
+
+🔸Q2: What is the purpose of the current_index in the load balancer dictionary?
+Answer:
+
+The current_index is used to keep track of which server should handle the next load. It ensures a circular rotation over the weighted server list.
+
+After each assignment, current_index is incremented:
+
+python
+Copy
+Edit
+load_balancer["current_index"] = (current_index + 1) % len(weighted_servers)
+This ensures that the index wraps around to the beginning once the end is reached, allowing continuous cycling.
+
+🔸Q3: How does weight affect the load distribution in this code? Give an example.
+Answer:
+
+Weight determines how many times a server is included in the internal servers list.
+
+Example:
+
+python
+Copy
+Edit
+Server A: weight = 2  
+Server B: weight = 1  
+Weighted List: [A, A, B]
+Sequence of assignment:
+
+Load 1 → A
+
+Load 2 → A
+
+Load 3 → B
+
+Load 4 → A
+
+Load 5 → A
+
+Load 6 → B
+
+So A gets twice as many loads as B.
+
+🔸Q4: Modify the code to allow removal of a server from the load balancer.
+Answer:
+
+To remove a server, you'd need to filter out all instances of it from the servers list:
+
+python
+Copy
+Edit
+def remove_server(load_balancer, server_name):
+    load_balancer["servers"] = [s for s in load_balancer["servers"] if s["name"] != server_name]
+    load_balancer["current_index"] = 0  # Optional: reset index
+🔸Q5: What are the limitations of the current implementation? Suggest improvements.
+Answer:
+
+Limitations:
+
+Inefficient memory usage for large weights
+
+Static weight system (doesn't adapt based on CPU, response time)
+
+No error handling or health check of servers
+
+Repeated server dictionaries in the list
+
+Improvements:
+
+Use a priority queue or counter instead of repeating elements
+
+Dynamic weight adjustment based on performance metrics
+
+Add server health check before assigning loads
+
+Use object-oriented approach for cleaner design
+
+
+
+
+

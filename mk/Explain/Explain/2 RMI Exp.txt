@@ -1,0 +1,257 @@
+ First: 2server.py — the Server code
+This code creates a server that waits for messages from clients and joins (concatenates) two strings they send.
+
+Line-by-line explanation:
+python
+Copy
+Edit
+#pip install Pyro4   -do this before running this code
+This is a comment telling you to install the Pyro4 library first. You do this by typing:
+
+nginx
+Copy
+Edit
+pip install Pyro4
+Pyro4 helps different Python programs talk to each other over the network.
+
+python
+Copy
+Edit
+import Pyro4
+This line loads the Pyro4 library so we can use its tools in our program.
+
+python
+Copy
+Edit
+@Pyro4.expose
+This decorator makes the class below visible to the outside world. In simple terms: it tells Pyro4 that clients will be allowed to use the class.
+
+python
+Copy
+Edit
+class StringConcatenator:
+Defines a class (like a blueprint) called StringConcatenator.
+
+python
+Copy
+Edit
+    def concatenate(self, str1, str2):
+Inside the class, this function concatenate takes two inputs (str1 and str2).
+
+python
+Copy
+Edit
+        print(f"Received: {str1}, {str2}")
+When the server receives the two strings from the client, it prints them for debugging.
+
+python
+Copy
+Edit
+        return str1 + str2
+Joins the two strings together and sends them back to the client.
+
+python
+Copy
+Edit
+def start_server():
+This is another function, which sets up and starts the server.
+
+python
+Copy
+Edit
+    daemon = Pyro4.Daemon(host="localhost")
+Starts the Pyro server, listening only on your own computer (localhost).
+
+python
+Copy
+Edit
+    uri = daemon.register(StringConcatenator)
+Registers the StringConcatenator class so Pyro can find it.
+
+It also gives you a uri, like an address, to connect to the server.
+
+python
+Copy
+Edit
+    print("Server running. URI:", uri)
+Shows the server's URI on the screen. You’ll need this URI to connect from the client.
+
+python
+Copy
+Edit
+    daemon.requestLoop()
+Keeps the server running, waiting for requests from clients.
+
+python
+Copy
+Edit
+start_server()
+Calls the function and actually starts the server.
+
+🔹 Second: 2client.py — the Client code
+This code connects to the server and asks it to join two strings.
+
+Line-by-line explanation:
+python
+Copy
+Edit
+import Pyro4
+Loads the Pyro4 library again, just like in the server.
+
+python
+Copy
+Edit
+# Paste the URI from the server output
+uri = "PYRO:obj_0f7c0de419004721ad557cb1763e60c6@localhost:55273"
+This is the address of the server. You get this from the server's output and paste it here.
+
+python
+Copy
+Edit
+proxy = Pyro4.Proxy(uri)
+This creates a proxy — like a remote controller — to talk to the server.
+
+python
+Copy
+Edit
+str1 = input("Enter first string: ")
+str2 = input("Enter second string: ")
+These two lines ask the user to enter two strings.
+
+python
+Copy
+Edit
+result = proxy.concatenate(str1, str2)
+Sends the two strings to the server and tells it: "Please join these."
+
+The server does the work and sends the result back.
+
+python
+Copy
+Edit
+print("Concatenated result:", result)
+Prints the result that came from the server.
+
+🔁 Summary of How It Works:
+You run the server → it starts listening and shows you a URI.
+
+You copy that URI into the client code.
+
+Run the client → it sends strings to the server.
+
+The server joins the strings and sends the result back.
+
+The client prints the final result.
+
+
+
+THEORY (Detailed Explanation)
+📌 What is this code about?
+This is a Python-based Remote Procedure Call (RPC) system using Pyro4 (Python Remote Objects). It allows one Python program (client) to call a method in another Python program (server) running on a different process or even machine.
+
+📘 What is Pyro4?
+Pyro4 is a Python library that enables you to build distributed applications. It allows a client program to access Python objects in a remote server as if they were local.
+
+It is based on:
+
+Object-Oriented Programming
+
+Sockets and serialization (done internally)
+
+Remote Method Invocation (RMI) in a Pythonic way.
+
+🔧 How It Works (Step-by-Step Explanation)
+1. Server Code (2server.py)
+It defines a class StringConcatenator with a method concatenate that takes two strings and returns their concatenation.
+
+It registers this class with Pyro4 so that it can be called remotely.
+
+It starts a daemon (server) that runs indefinitely and waits for client requests.
+
+2. Client Code (2client.py)
+It uses the URI (Uniform Resource Identifier) printed by the server to connect to the remote object.
+
+It takes two string inputs from the user.
+
+It calls the concatenate method remotely using Pyro4 proxy.
+
+It prints the result returned by the server.
+
+3. Communication
+Uses inter-process communication via TCP/IP on the localhost.
+
+Pyro4 handles serialization/deserialization (turning Python objects into a format that can be sent over a network).
+
+📋 Key Concepts You Should Know
+Concept	Explanation
+RPC	Remote Procedure Call – calling a function in another program over a network.
+Pyro4 Daemon	A server component that listens for client requests.
+URI	A unique address to identify the remote object.
+Proxy	A local object that behaves like the remote object.
+Expose	@Pyro4.expose allows a method/class to be accessed remotely.
+Serialization	Converting objects into bytes for transfer over a network.
+
+🧠 POSSIBLE EXAM/VIVA QUESTIONS (with answers)
+💬 Basic Questions
+Q: What is Pyro4?
+
+Pyro4 is a library in Python used for building distributed applications. It allows remote method calls between Python objects.
+
+Q: What does @Pyro4.expose do?
+
+It makes the class or method available to be called from the client.
+
+Q: What is a Pyro4 Daemon?
+
+It is a server-side object that listens for incoming client connections and processes remote calls.
+
+Q: What is the purpose of daemon.register()?
+
+It registers a class instance or object so that Pyro can assign it a URI and expose it to clients.
+
+Q: Why do we need a URI in Pyro4?
+
+The URI is the address of the remote object. The client uses it to locate and connect to the server object.
+
+Q: What is a proxy in Pyro4?
+
+It is an object on the client side that acts as if it were the remote object, allowing remote method calls.
+
+Q: Why do we use localhost in the server?
+
+Because we are running both client and server on the same computer for testing purposes.
+
+Q: What happens if you use the wrong URI in the client?
+
+The client will not be able to connect to the server and will raise a connection error.
+
+💬 Advanced Questions
+Q: How does Pyro4 internally communicate between client and server?
+
+It uses sockets over TCP/IP and automatically serializes Python objects into bytes using pickle.
+
+Q: Can this code work over the internet?
+
+Yes, if you replace localhost with a public IP address and open the firewall/ports appropriately.
+
+Q: How do you handle security in Pyro4?
+
+Pyro4 supports SSL, authentication, and IP whitelisting, but by default, it is insecure and should not be used over untrusted networks without security settings.
+
+Q: What happens if the server is not running and the client tries to connect?
+
+The client will raise a CommunicationError or TimeoutError.
+
+Q: Can you call any method from the server class?
+
+Only methods that are exposed using @Pyro4.expose can be called remotely.
+
+🧪 Real-Life Applications
+Distributed computing systems
+
+Remote sensors/data collectors
+
+Chat applications
+
+
+
